@@ -44,9 +44,6 @@ terraform.rc
 
 # Keep .terraform.lock.hcl files tracked for reproducible providers.
 
-# Sonar Scanner
-.scannerwork/
-
 # Jekyll build output
 _site/
 .jekyll-cache/
