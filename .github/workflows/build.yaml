@@ -25,18 +25,17 @@ jobs:
     if: ${{ !contains(github.event.head_commit.message,'[skip ci]') }}
     steps:
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: setup go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
-          go-version: 1.22
+          go-version: 1.26.7
 
       - name: lint
-        uses: golangci/golangci-lint-action@v4
+        uses: golangci/golangci-lint-action@v9
         with:
-          version: v1.57.1
-          skip-pkg-cache: true
+          version: v2.13.2
           args: --config .golangci.yaml --verbose ./...
 
       - name: test
@@ -47,7 +46,7 @@ jobs:
           make test-json
 
       - name: upload test results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v7
         if: ${{ always() }}
         with:
           name: test-reports
@@ -57,14 +56,6 @@ jobs:
             test-report.out
             coverage.out
 
-      - name: SonarCloud scan
-        uses: SonarSource/sonarcloud-github-action@master
-        if: ${{ always() }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-  
-  
   docker-build:
 
     runs-on: ubuntu-latest
@@ -79,15 +70,15 @@ jobs:
       }}
     steps:
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: get short sha
         id: short_sha
-        run: echo ::set-output name=sha::$(git rev-parse --short HEAD)
+        run: echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: get version
         id: version
-        run: echo ::set-output name=version::$([[ -z "${{ github.event.pull_request.number }}" ]] && echo "sha-${{ steps.short_sha.outputs.sha }}" || echo "pr-${{ github.event.pull_request.number }}")
+        run: echo "version=$([[ -z "${{ github.event.pull_request.number }}" ]] && echo "sha-${{ steps.short_sha.outputs.sha }}" || echo "pr-${{ github.event.pull_request.number }}")" >> "$GITHUB_OUTPUT"
 
       - name: set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -97,6 +88,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: login to DockerHub
+        if: ${{ github.event_name != 'pull_request' }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -121,13 +113,13 @@ jobs:
             org.opencontainers.image.vendor=DoiT International
 
       - name: build and push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           build-args: |
             VERSION=${{ steps.version.outputs.version }}
             COMMIT=${{ steps.short_sha.outputs.sha }}
             BRANCH=${{ github.ref_name }}
-          push: true
+          push: ${{ github.event_name != 'pull_request' }}
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
